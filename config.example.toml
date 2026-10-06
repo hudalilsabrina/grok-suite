@@ -1,0 +1,7 @@
+# Grok Suite - example config (placeholder, aman dipublish)
+[api]
+tempmail_base = "http://localhost:8080/api"
+
+[router]
+url = "http://localhost:20127"
+password = ""

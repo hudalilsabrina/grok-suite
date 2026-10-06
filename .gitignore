@@ -1,0 +1,8 @@
+.venv/
+__pycache__/
+accounts.txt
+data/
+*.log
+config.toml
+screenshots/
+proxies.txt
