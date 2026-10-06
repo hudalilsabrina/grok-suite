@@ -137,7 +137,9 @@ async def harvest_grok(headless: bool = False, timeout_code: int = 300,
         ctx = await browser.new_context()
         page = await ctx.new_page()
         try:
-            await page.goto(SIGNUP_URL, wait_until="domcontentloaded", timeout=60000)
+            # timeout lebih pendek saat pakai proxy (biar cepat ganti proxy kalau lambat)
+            nav_to = 35000 if proxy else 60000
+            await page.goto(SIGNUP_URL, wait_until="domcontentloaded", timeout=nav_to)
             await page.wait_for_timeout(7000)
             # klik "Sign up with email"
             await page.evaluate("""() => { const b=[...document.querySelectorAll('button,a,div[role=button]')].find(x=>/sign up with email/i.test(x.innerText||'')); if(b) b.click(); }""")

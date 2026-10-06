@@ -3,14 +3,18 @@
 
 Command:
   harvest [n]      Buat n akun Grok (default 1)
+  batch <n>        Batch dengan rotasi proxy (lihat batch.py)
   test             Test semua SSO tersimpan (panggil API grok)
   report           Ringkasan akun
   sync             Inject akun ke 9router (node openai-compatible)
   probe            Cek apakah pendaftaran email xAI sedang aktif
+  check-inbox      Cek inbox riwayat untuk kode telat
+  refresh-proxies  Ambil daftar proxy xAI terbaru dari proxyscrape-suite
 """
 import argparse
 import asyncio
 import json
+import subprocess
 import sys
 import urllib.request
 from pathlib import Path
@@ -24,24 +28,46 @@ from rich import box
 from src import grok
 
 C = Console()
-ACCOUNTS = Path(__file__).resolve().parent / "accounts.txt"
+ROOT = Path(__file__).resolve().parent
+ACCOUNTS = ROOT / "accounts.txt"
+PROXIES_XAI = ROOT / "proxies_xai.txt"
 
 GROK_API = "https://api.x.ai/v1"
+PROXYSCRAPE_SUITE = Path("/root/proxyscrape-suite")
 
 
-def cmd_harvest(n):
+def cmd_harvest(n, use_proxy=True, max_tries_per_acct=3):
+    proxies = load_proxies() if use_proxy else []
+    if proxies:
+        C.print(f"[cyan]Rotasi {len(proxies)} proxy xAI[/]")
     ok = 0
+    pi = 0
     for i in range(1, n + 1):
-        C.print(f"[cyan]=== Akun {i}/{n} ===[/]")
-        r = asyncio.run(grok.harvest_grok(headless=False))
-        if r.get("ok"):
-            ok += 1
-            C.print(f"[green]  OK {r['email']} | SSO {r['sso'][:30]}...[/]")
-        else:
-            C.print(f"[yellow]  gagal: {r.get('error')}[/]")
-            if r.get("error") == "account:email-signup-unavailable":
-                C.print("[red]  xAI mematikan pendaftaran email sementara — berhenti.[/]")
+        got = False
+        tries = 0
+        while tries < (max_tries_per_acct if proxies else 1):
+            tries += 1
+            px = proxies[pi % len(proxies)] if proxies else None
+            pi += 1
+            C.print(f"[cyan]=== Akun {i}/{n} (coba {tries}) ===[/]" + (f" [dim]via {px}[/]" if px else ""))
+            r = asyncio.run(grok.harvest_grok(headless=False, proxy=px))
+            if r.get("ok"):
+                ok += 1
+                got = True
+                C.print(f"[green]  OK {r['email']} | SSO {r['sso'][:30]}...[/]")
                 break
+            err = r.get("error") or ""
+            C.print(f"[yellow]  gagal: {err}[/]")
+            if err == "account:email-signup-unavailable":
+                C.print("[red]  xAI mematikan pendaftaran email — berhenti.[/]")
+                C.print(f"\n[bold]Selesai: {ok}/{n} sukses[/]")
+                return
+            # timeout proxy / error jaringan -> coba proxy lain
+            if proxies and ("Timeout" in err or "ERR_" in err or "net::" in err):
+                continue
+            break
+        if not got and not proxies:
+            C.print("[yellow]  (tanpa proxy, tidak diulang)[/]")
     C.print(f"\n[bold]Selesai: {ok}/{n} sukses[/]")
 
 
@@ -117,6 +143,44 @@ def cmd_probe():
             C.print("[green]=> Endpoint merespons (cek via browser utk kirim sungguhan).[/]")
 
 
+def load_proxies() -> list:
+    """Baca proxy untuk grok: proxies_xai.txt (hasil proxyscrape-suite) atau proxies.txt."""
+    for f in (PROXIES_XAI, ROOT / "proxies.txt"):
+        if f.exists():
+            lines = [l.strip() for l in f.read_text().splitlines() if l.strip()]
+            if lines:
+                return lines
+    return []
+
+
+def cmd_refresh_proxies(limit=0, workers=30):
+    """Jalankan proxyscrape-suite untuk menghasilkan daftar proxy xAI terbaru.
+
+    Alur: proxyscrape-suite update (fetch+check) -> filter xai -> salin ke grok-suite.
+    """
+    if not PROXYSCRAPE_SUITE.exists():
+        C.print(f"[red]Tidak menemukan {PROXYSCRAPE_SUITE}[/]")
+        return
+    ps = PROXYSCRAPE_SUITE / "run.sh"
+    C.print("[cyan]1/3 fetch + check proxy (proxyscrape-suite)...[/]")
+    subprocess.run([str(ps), "update", "--ports", "80,443,8080", "--workers", "300"],
+                   cwd=str(PROXYSCRAPE_SUITE), check=False)
+    C.print("[cyan]2/3 filter proxy yang bisa capai accounts.x.ai...[/]")
+    args = [str(ps), "xai", "--workers", str(workers)]
+    if limit:
+        args += ["--limit", str(limit)]
+    subprocess.run(args, cwd=str(PROXYSCRAPE_SUITE), check=False)
+    # 3. salin
+    src = PROXYSCRAPE_SUITE / "data" / "proxies_xai.txt"
+    if src.exists():
+        data = src.read_text().strip()
+        PROXIES_XAI.write_text(data + "\n")
+        n = len([l for l in data.splitlines() if l.strip()])
+        C.print(f"[green]3/3 {n} proxy xAI -> {PROXIES_XAI}[/]")
+    else:
+        C.print("[yellow]3/3 tidak ada hasil; pakai proxy lama bila ada.[/]")
+
+
 def cmd_check_inbox():
     """Cek inbox riwayat untuk kode yang mungkin telat masuk."""
     import re
@@ -145,14 +209,18 @@ def main():
     ap = argparse.ArgumentParser(prog="grok", description="Grok Suite")
     sub = ap.add_subparsers(dest="cmd")
     h = sub.add_parser("harvest"); h.add_argument("n", nargs="?", type=int, default=1)
+    h.add_argument("--no-proxy", action="store_true", help="jangan pakai proxy (langsung)")
     sub.add_parser("test")
     sub.add_parser("report")
     sub.add_parser("sync")
     sub.add_parser("probe")
     sub.add_parser("check-inbox")
+    rp = sub.add_parser("refresh-proxies")
+    rp.add_argument("--limit", type=int, default=0)
+    rp.add_argument("--workers", type=int, default=30)
     a = ap.parse_args()
     if a.cmd == "harvest":
-        cmd_harvest(a.n)
+        cmd_harvest(a.n, use_proxy=not a.no_proxy)
     elif a.cmd == "test":
         cmd_test()
     elif a.cmd == "report":
@@ -163,6 +231,8 @@ def main():
         cmd_probe()
     elif a.cmd == "check-inbox":
         cmd_check_inbox()
+    elif a.cmd == "refresh-proxies":
+        cmd_refresh_proxies(a.limit, a.workers)
     else:
         ap.print_help()
 

@@ -132,3 +132,27 @@ prefix `grok` dan meng-inject SSO sebagai kredensial.
   **[Turnstile-Solver](https://github.com/Theyka/Turnstile-Solver)** — teknik
   solver Turnstile (halaman minimal + route fulfill).
 - **[tempik](https://github.com/hirotomasato/tempik)** — temp-mail service.
+
+## 🔗 Integrasi dengan proxyscrape-suite
+
+`grok-suite` bisa memakai proxy hasil `proxyscrape-suite` untuk **rotasi IP**:
+
+```bash
+# 1. tarik + filter proxy yang bisa capai accounts.x.ai (otomatis)
+./run.sh refresh-proxies
+
+# 2. harvest dengan rotasi proxy (fallback otomatis kalau proxy lambat)
+xvfb-run -a ./run.sh harvest 5
+
+# tanpa proxy (langsung):
+xvfb-run -a ./run.sh harvest 1 --no-proxy
+```
+
+`refresh-proxies` menjalankan proxyscrape-suite (fetch → check → filter xAI) dan
+menyalin hasilnya ke `proxies_xai.txt`. `harvest` otomatis membacanya + mencoba
+proxy berikutnya bila ada timeout.
+
+**Temuan penting:** blokir `account:email-signup-unavailable` dari xAI bersifat
+**global** (bukan per-IP) — proxy dengan egress berbeda pun tetap diblokir.
+Jadi rotasi proxy **tidak menolong** saat xAI mematikan email-signup; tunggu
+sampai diaktifkan kembali.
