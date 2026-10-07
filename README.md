@@ -96,8 +96,8 @@ xvfb-run -a .venv/bin/python batch.py 20 --proxy-file proxies.txt
 (hanya 80/443/8080 yang bisa keluar). Proxy di port 80/443/8080 dipakai
 otomatis oleh `extract_proxies.py`.
 
-Proxy yang terbukti hidup di browser (datacenter): `172.105.120.179:443`,
-`4.144.146.21:80`, `138.68.60.8:80`, `209.97.150.167:80`.
+Proxy yang terbukti hidup dipakai otomatis; daftar disimpan lokal di
+`proxies.txt` (tidak di-publish).
 
 ## Format akun (`accounts.txt`)
 

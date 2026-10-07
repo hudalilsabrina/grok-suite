@@ -144,10 +144,11 @@ def cmd_probe():
 
 
 def load_proxies() -> list:
-    """Baca proxy untuk grok: proxies_xai.txt (hasil proxyscrape-suite) atau proxies.txt."""
-    for f in (PROXIES_XAI, ROOT / "proxies.txt"):
+    """Baca proxy untuk grok (prioritas: webshare residensial > xai > umum)."""
+    for f in (ROOT / "proxies_webshare.txt", PROXIES_XAI, ROOT / "proxies.txt"):
         if f.exists():
-            lines = [l.strip() for l in f.read_text().splitlines() if l.strip()]
+            lines = [l.strip() for l in f.read_text().splitlines()
+                     if l.strip() and not l.startswith("#")]
             if lines:
                 return lines
     return []

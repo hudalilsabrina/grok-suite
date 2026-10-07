@@ -6,3 +6,6 @@ data/
 config.toml
 screenshots/
 proxies.txt
+proxies_xai.txt
+proxies_xai.json
+proxies_webshare.txt

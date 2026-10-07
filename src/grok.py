@@ -109,6 +109,24 @@ def read_code(tc: TempikClient, email: str, timeout: int = 300) -> Optional[str]
     return None
 
 
+def _parse_proxy(proxy: str) -> Dict[str, Any]:
+    """Parse URL proxy jadi format playwright, dukung kredensial.
+
+    "http://user:pass@host:port" -> {"server":"http://host:port","username":..,"password":..}
+    "http://host:port"           -> {"server":"http://host:port"}
+    """
+    from urllib.parse import urlparse
+    u = urlparse(proxy)
+    scheme = u.scheme or "http"
+    server = f"{scheme}://{u.hostname}:{u.port}"
+    d: Dict[str, Any] = {"server": server}
+    if u.username:
+        d["username"] = u.username
+    if u.password:
+        d["password"] = u.password
+    return d
+
+
 async def harvest_grok(headless: bool = False, timeout_code: int = 300,
                        verbose: bool = True, proxy: str = None) -> Dict[str, Any]:
     """Buat 1 akun Grok. Return dict {ok, email, password, sso, error, ...}.
@@ -132,7 +150,7 @@ async def harvest_grok(headless: bool = False, timeout_code: int = 300,
     async with async_playwright() as pw:
         launch_kw = {"headless": headless}
         if proxy:
-            launch_kw["proxy"] = {"server": proxy}
+            launch_kw["proxy"] = _parse_proxy(proxy)
         browser = await pw.chromium.launch(**launch_kw)
         ctx = await browser.new_context()
         page = await ctx.new_page()

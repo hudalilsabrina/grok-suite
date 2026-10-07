@@ -29,8 +29,7 @@ UI: "Email sign-up isn't available right now. Sign up another way."
 - 1990 datacenter + 10 residential.
 - **Sandbox hanya bisa keluar ke port 80/443/8080** → hanya 77 proxy terjangkau
   (72 http). Port lain (4145, 1080, 3128, 9090) diblokir firewall sandbox.
-- 17 hidup (urllib), 4 jalan di **browser**:
-  `172.105.120.179:443`, `4.144.146.21:80`, `138.68.60.8:80`, `209.97.150.167:80`
+- 17 hidup (urllib), 4 jalan di **browser** (detail IP disimpan lokal, tidak di-publish).
 - 3 residential terjangkau (Japan/Vietnam) — tapi timeout di browser.
 
 ## Status suite
