@@ -1,50 +1,99 @@
-# Grok Suite — Status & Temuan
+# Grok Suite — Status & Temuan Lapangan
 
-## ✅ Terbukti bekerja (dari IP datacenter, TANPA proxy residensial)
+## ✅ Terbukti end-to-end (akun jadi + inference jalan)
 
-| Komponen | Bukti |
-|---|---|
-| Turnstile via **patchright** | token 816 char, diterima xAI (error `email:invalid-validation-code`, bukan `anti-abuse:token-invalid`) |
-| Email masuk ke **tempik** | kode 6-digit masuk **dalam 6 detik** (subject "SpaceXAI confirmation code: NNN-NNN") |
-| **castleRequestToken** | wajib; ditemukan via intersepsi request halaman asli |
-| Baca kode + verifikasi | ✅ lanjut ke form "Complete your sign up" |
-| Form akhir + Turnstile | ✅ field terisi, token solver siap |
-
-## 🔴 Blocker server-side xAI (bukan bug kita)
-
-xAI sekarang konsisten membalas:
 ```
-POST /api/auth/send-verification-code -> 400
+inbox   ratnaayu26@xentranetwork.me        (tempik)
+kode    "059187" masuk ~6 detik            (subject "SpaceXAI confirmation code: NNN-NNN")
+form    "Complete your sign up" muncul
+Turnstile 816 char (patchright) → di-inject ke halaman Camoufox
+POST /api/auth/sign-up/create-account → 200
+        {"session":{"userId":"…","email":"ratnaayu26@…"}}
+cookies sso, sso-rw, last-logged-in-with   → SUKSES
+```
+
+Lalu lewat grok2api (egress residensial):
+
+```
+POST /v1/chat/completions  model=grok-chat-fast
+→ {"content":"GROK-LIVE"}  status 200
+```
+
+| Komponen | Status | Catatan |
+|---|---|---|
+| Camoufox (Firefox) tembus gate signup | ✅ | Chromium/Playwright sering ditolak di titik yang sama |
+| Kode OTP via **tempik** | ✅ | masuk ~6 detik |
+| `castleRequestToken` | ✅ wajib | di-generate halaman asli; tanpa itu email tidak dikirim |
+| Turnstile | ✅ | Camoufox 0 token → **patchright** 816 char → inject |
+| Submit form akhir | ✅ **via API**, bukan klik tombol | lihat di bawah |
+| SSO → grok2api pool | ✅ | provider `grok_web` |
+| Inference | ✅ | **wajib egress residensial** (grok.com 403 dari IP DC) |
+
+## 🔑 Temuan kunci
+
+1. **Klik `Complete sign up` tidak memicu request apa pun** saat token Turnstile
+   di-inject dari luar — token ada di DOM tapi tidak masuk React state. Yang
+   bekerja: `fetch('/api/auth/sign-up/create-account', {credentials:'include', ...})`
+   langsung dari konteks halaman.
+2. **Camoufox tidak bisa Turnstile** (Firefox: `window.turnstile` undefined),
+   **patchright bisa** (816 char). Kombinasi keduanya yang menang.
+3. **grok.com blokir IP datacenter** (403, bahkan dengan SSO valid); lewat
+   residensial 200. Pasang egress node di grok2api + assign akun.
+
+## 🔴 Gate `email-signup-unavailable` (bukan bug kita)
+
+```
+POST /api/auth/send-verification-code → 400
 {"code":"account:email-signup-unavailable"}
 UI: "Email sign-up isn't available right now. Sign up another way."
 ```
 
-- Muncul **setelah** burst ~10-15 percobaan.
-- Konsisten untuk semua email/domain (bukan per-domain).
-- **Kemungkinan besar: IP datacenter kita kena flag** setelah burst.
-  Ini justru alasan kuat memakai **rotasi proxy** (10 residential + 1990 dc).
+**Bukan soal domain.** Uji A/B pada menit yang sama:
 
-## 🔄 Proxy (dari user: 2000 proxy)
+| Email | Hasil saat gate tutup |
+|---|---|
+| `@fantech.tech` (tempik) | `account:email-signup-unavailable` |
+| `@gmail.com` (kontrol) | `account:email-signup-unavailable` (identik) |
+| `@<domain tanpa MX>` | `account:email-signup-unavailable` (identik) |
+| `@maxxspace.com` (mail.tm) | `form-invalid:disposable-email` ← ini blokir domain |
 
-- 1990 datacenter + 10 residential.
-- **Sandbox hanya bisa keluar ke port 80/443/8080** → hanya 77 proxy terjangkau
-  (72 http). Port lain (4145, 1080, 3128, 9090) diblokir firewall sandbox.
-- 17 hidup (urllib), 4 jalan di **browser** (detail IP disimpan lokal, tidak di-publish).
-- 3 residential terjangkau (Japan/Vietnam) — tapi timeout di browser.
+Dan saat gate buka, tempik **dan** gmail dua-duanya lolos. Jadi pembedanya
+**waktu** dan **egress**, bukan domain. `mail.tm` memang masuk daftar hitam xAI;
+tempik tidak.
 
-## Status suite
+**Pola buka-tutup:** teramati jendela ±beberapa menit sampai ±30 menit
+(mis. 04:08–04:10, 04:30, 05:03–05:36, 09:18 UTC), sisanya tutup.
 
-`grok-suite` **lengkap & fungsional**:
-- `main.py` — harvest/test/report/sync/probe/check-inbox
-- `batch.py` — batch + rotasi proxy + deteksi blokir
-- `src/grok.py` — engine (patchright + castle + tempik + turnstile solver)
-- `extract_proxies.py`, `test_proxies.py` — utilitas proxy
-- `README.md`, `config.example.toml`, `.gitignore`
+**Rate limit terpisah:** `Too many code requests. Please wait a few minutes` —
+hambatan per-IP; retry rapat memperpanjang blokir. Beri jeda.
+
+## 🔄 Proxy
+
+- Proxy residensial **menaikkan peluang** saat gate buka (uji A/B: 2/2 sukses
+  lewat residensial sementara IP DC dapat 400 di menit yang sama).
+- Proxy gratis datacenter: lolos `curl` tapi sering gagal di browser
+  (`ERR_TIMED_OUT` / `CONNECTION_RESET`).
+- Rotasi per-request **mematahkan `cf_clearance`** di tengah flow — sisakan
+  sebagian attempt tanpa proxy.
+
+## Struktur
+
+```
+harvest_camoufox.py   engine utama (Camoufox) + fallback Turnstile patchright
+ts_solve_cli.py       solver Turnstile (patchright, halaman minimal)
+camo_shoot.sh         retry loop harvest (jeda, stop saat dapat 1 akun)
+device_auth2.py       OAuth device driver (signup + authorize)
+device_loop.sh        retry loop device
+sync_grok2api.py      import SSO → pool grok2api + client key
+probe_domains.py      uji eligibility domain/egress
+main.py + src/        engine patchright (harvest/test/report/sync/probe)
+```
 
 ## Langkah berikutnya
 
-1. **Tunggu** xAI buka lagi (jam-an), lalu `xvfb-run -a ./run.sh harvest 1`.
-2. Untuk batch besar: rotasi proxy (`batch.py <n> --proxy-file proxies.txt`)
-   untuk hindari flag IP.
-3. Jalankan dari **VPS** (bukan sandbox) agar semua proxy (termasuk port
-   1080/4145/3128) bisa dipakai — sandbox ini terlalu ketat firewall-nya.
+1. Nambah akun: `CAMO_PY=... ./camo_shoot.sh <n> <jeda_detik>` — biarkan retry
+   pelan; jangan hammer.
+2. Untuk batch besar, siapkan **pool egress residensial** dan assign akun ke
+   node-nya di grok2api.
+3. Jalankan dari **VPS** kalau mau memakai proxy di port non-standar
+   (sandbox ini hanya bisa keluar ke 80/443/8080).

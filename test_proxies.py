@@ -1,9 +1,11 @@
 """Tes proxy: hanya yang portnya terjangkau sandbox (80/443/8080).
 Cek: apakah proxy hidup + egress IP + latensi.
 """
+import os
+from pathlib import Path
 import json, socket, time, urllib.request, concurrent.futures as cf
 
-PKG = "/root/.hermes/cache/documents/doc_3705f99552a2_shared_2000_proxies_package.json"
+PKG = os.environ.get("PROXY_PACKAGE", "proxies_package.json")
 d = json.load(open(PKG))
 allp = d["datacenter_proxies"] + d["residential_proxies"]
 REACHABLE = {80, 443, 8080}
@@ -47,4 +49,4 @@ with cf.ThreadPoolExecutor(max_workers=30) as ex:
             alive.append(r)
             print(f"  OK {r['proxy']:<22} {r.get('country','?'):<14} egress={r.get('egress')}")
 print(f"\nproxy HIDUP & bisa HTTP: {len(alive)}/{len(cands)}")
-json.dump(alive, open("/root/grok-suite/data/_alive_proxies.json", "w"), indent=1)
+json.dump(alive, open(str(Path(__file__).resolve().parent / "data" / "_alive_proxies.json"), "w"), indent=1)

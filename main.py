@@ -12,6 +12,7 @@ Command:
   refresh-proxies  Ambil daftar proxy xAI terbaru dari proxyscrape-suite
 """
 import argparse
+import os
 import asyncio
 import json
 import subprocess
@@ -33,7 +34,7 @@ ACCOUNTS = ROOT / "accounts.txt"
 PROXIES_XAI = ROOT / "proxies_xai.txt"
 
 GROK_API = "https://api.x.ai/v1"
-PROXYSCRAPE_SUITE = Path("/root/proxyscrape-suite")
+PROXYSCRAPE_SUITE = Path(os.environ.get("PROXYSCRAPE_SUITE", "../proxyscrape-suite")).resolve()
 
 
 def cmd_harvest(n, use_proxy=True, max_tries_per_acct=3):
@@ -58,6 +59,12 @@ def cmd_harvest(n, use_proxy=True, max_tries_per_acct=3):
                 break
             err = r.get("error") or ""
             C.print(f"[yellow]  gagal: {err}[/]")
+            diag = {k: v for k, v in r.items() if k not in ("email", "password", "sso")}
+            C.print(f"[dim]  diag: {json.dumps(diag, default=str)[:3000]}[/]")
+            if err.startswith("rate:"):
+                import time as _time
+                C.print("[red]  limit kirim kode per-IP — cooldown 150 dtk[/]")
+                _time.sleep(150)
             if err == "account:email-signup-unavailable":
                 C.print("[red]  xAI mematikan pendaftaran email — berhenti.[/]")
                 C.print(f"\n[bold]Selesai: {ok}/{n} sukses[/]")

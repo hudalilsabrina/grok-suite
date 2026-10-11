@@ -1,10 +1,12 @@
 """Ekstrak proxy dari package JSON -> file proxies.txt (format http://host:port).
 Hanya ambil yang portnya terjangkau sandbox (80/443/8080) & proto http.
 """
+import os
+from pathlib import Path
 import json, sys
 
-PKG = sys.argv[1] if len(sys.argv) > 1 else "/root/.hermes/cache/documents/doc_3705f99552a2_shared_2000_proxies_package.json"
-OUT = sys.argv[2] if len(sys.argv) > 2 else "/root/grok-suite/proxies.txt"
+PKG = sys.argv[1] if len(sys.argv) > 1 else os.environ.get("PROXY_PACKAGE", "proxies_package.json")
+OUT = sys.argv[2] if len(sys.argv) > 2 else str(Path(__file__).resolve().parent / "proxies.txt")
 REACHABLE = {80, 443, 8080}
 
 d = json.load(open(PKG))

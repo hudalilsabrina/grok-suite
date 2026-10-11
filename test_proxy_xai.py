@@ -1,7 +1,9 @@
 """Tes: apakah proxy bisa menjangkau accounts.x.ai? + cek residential."""
+import os
+from pathlib import Path
 import json, urllib.request, concurrent.futures as cf, time
 
-PKG = "/root/.hermes/cache/documents/doc_3705f99552a2_shared_2000_proxies_package.json"
+PKG = os.environ.get("PROXY_PACKAGE", "proxies_package.json")
 d = json.load(open(PKG))
 
 # 3 residential yang portnya terjangkau
@@ -12,7 +14,7 @@ for p in res:
 
 # alive datacenter dari tes sebelumnya
 try:
-    alive = json.load(open("/root/grok-suite/data/_alive_proxies.json"))
+    alive = json.load(open(str(Path(__file__).resolve().parent / "data" / "_alive_proxies.json")))
 except Exception:
     alive = []
 print(f"\ndatacenter alive: {len(alive)}")
@@ -42,4 +44,4 @@ with cf.ThreadPoolExecutor(max_workers=20) as ex:
             ok.append(r)
             print(f"  {r['proxy']:<22} {str(r.get('country')):<16} status={r['status']}")
 print(f"\nbisa capai accounts.x.ai: {len(ok)}")
-json.dump(ok, open("/root/grok-suite/data/_proxies_xai.json", "w"), indent=1)
+json.dump(ok, open(str(Path(__file__).resolve().parent / "data" / "_proxies_xai.json"), "w"), indent=1)

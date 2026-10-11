@@ -9,3 +9,6 @@ proxies.txt
 proxies_xai.txt
 proxies_xai.json
 diag_*.py
+.venv-camo/
+*.jar
+proxies_package.json
