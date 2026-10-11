@@ -79,21 +79,20 @@ hambatan per-IP; retry rapat memperpanjang blokir. Beri jeda.
 ## Struktur
 
 ```
-harvest_camoufox.py   engine utama (Camoufox) + fallback Turnstile patchright
-ts_solve_cli.py       solver Turnstile (patchright, halaman minimal)
-camo_shoot.sh         retry loop harvest (jeda, stop saat dapat 1 akun)
-device_auth2.py       OAuth device driver (signup + authorize)
-device_loop.sh        retry loop device
-sync_grok2api.py      import SSO → pool grok2api + client key
-probe_domains.py      uji eligibility domain/egress
-main.py + src/        engine patchright (harvest/test/report/sync/probe)
+grok.py               CLI (harvest / list / probe / sync / test)
+harvest_camoufox.py   engine harvest (Camoufox + submit via API)
+ts_solve_cli.py       solver Turnstile (patchright)
+src/common.py         helper bersama
+src/mail.py           klien temp-mail (tempik + mail.tm)
+src/turnstile.py      pembungkus solver + inject token
+setup.sh / setup.ps1  instalasi (Linux-macOS / Windows)
+grok.bat              wrapper Windows
 ```
 
 ## Langkah berikutnya
 
-1. Nambah akun: `CAMO_PY=... ./camo_shoot.sh <n> <jeda_detik>` — biarkan retry
-   pelan; jangan hammer.
+1. Nambah akun: `grok.py harvest -n 5 --stop-on-gate` (Windows: `grok.bat ...`).
+   Biarkan retry pelan; jangan hammer.
 2. Untuk batch besar, siapkan **pool egress residensial** dan assign akun ke
    node-nya di grok2api.
-3. Jalankan dari **VPS** kalau mau memakai proxy di port non-standar
-   (sandbox ini hanya bisa keluar ke 80/443/8080).
+3. Jalankan dari **VPS** kalau mau memakai proxy di port non-standar.

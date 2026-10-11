@@ -1,0 +1,9 @@
+# Dependensi grok-suite
+#   python -m pip install -r requirements.txt
+#
+# Browser-nya diunduh sekali per mesin:
+#   python -m patchright install chromium     (solver Turnstile)
+#   python -m camoufox fetch                  (engine harvest)
+
+patchright>=1.50
+camoufox[geoip]>=0.4
