@@ -170,7 +170,8 @@ def cmd_sync(a):
                "Content-Type: application/json\r\n\r\n"
                + json.dumps(doc, indent=2) + f"\r\n--{boundary}--\r\n").encode()
     r = urllib.request.Request(base + "/api/admin/v1/accounts/web/import", data=payload,
-                               headers={"Content-Type": f"multipart/form-data; boundary={boundary}",
+                               headers={**H,
+                                        "Content-Type": f"multipart/form-data; boundary={boundary}",
                                         "Accept": "text/event-stream"}, method="POST")
     try:
         with op.open(r, timeout=300) as x:
